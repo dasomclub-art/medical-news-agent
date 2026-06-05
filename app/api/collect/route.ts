@@ -79,6 +79,11 @@ export async function POST(request: NextRequest) {
         .upsert(articlesToInsert, { onConflict: 'url', ignoreDuplicates: false })
         .select('id, url, is_summarized');
 
+      if (insertError) {
+        console.error(`[collect] Supabase upsert error for ${result.source}:`, insertError);
+        stats[result.source] = { collected: result.articles.length, new: 0, error: insertError.message };
+      }
+
       if (!insertError && inserted) {
         newCount = inserted.length;
         totalNew += newCount;
