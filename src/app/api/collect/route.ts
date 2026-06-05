@@ -6,11 +6,11 @@ import { summarizeArticle } from '@/lib/openrouter'
 export const maxDuration = 300
 
 export async function POST(req: NextRequest) {
-  // Verify cron secret or internal call
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
+  const isVercelCron = req.headers.get('x-vercel-cron') === '1'
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (cronSecret && !isVercelCron && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
