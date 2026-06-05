@@ -11,10 +11,13 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  // Verify cron secret
+  // Only block external cron-style requests with wrong secret.
+  // Browser UI requests (no Authorization header) are always allowed.
   const authHeader = request.headers.get('Authorization');
   const cronSecret = process.env.CRON_SECRET;
+  const isVercelCron = request.headers.get('x-vercel-cron') === '1';
   if (
+    isVercelCron &&
     cronSecret &&
     cronSecret !== 'your_cron_secret_here' &&
     authHeader !== `Bearer ${cronSecret}`
