@@ -7,7 +7,9 @@ export async function summarizeArticle(
   title: string,
   content: string
 ): Promise<SummarizeResult> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const _rawKey = process.env.OPENROUTER_API_KEY || '';
+  // Strip BOM (charCode 65279) that Windows/PowerShell injects via stdin pipe
+  const apiKey = (_rawKey.charCodeAt(0) === 65279 ? _rawKey.slice(1) : _rawKey).trim();
   if (!apiKey || apiKey === 'your_openrouter_api_key_here') {
     return { summary: '', keywords: [] };
   }
