@@ -10,9 +10,10 @@ const parser = new Parser({
 });
 
 const NIH_FEEDS = [
+  'https://www.nih.gov/news-events/news-releases.rss',
+  'https://www.cancer.gov/news-events/cancer-currents-blog/feed',
   'https://newsinhealth.nih.gov/sites/nihNIH/files/rss.xml',
   'https://www.niaid.nih.gov/news-events/newsroom/rss',
-  'https://www.cancer.gov/news-events/cancer-currents-blog/feed',
 ];
 
 export async function scrapeNIH(): Promise<CollectionResult> {

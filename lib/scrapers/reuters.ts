@@ -1,93 +1,51 @@
-import * as cheerio from 'cheerio';
+import Parser from 'rss-parser';
 import type { Article, CollectionResult } from '../types';
 
-async function fetchWithTimeout(url: string, timeout = 9000): Promise<Response> {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Accept:
-          'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Cache-Control': 'no-cache',
-      },
-    });
-    return res;
-  } finally {
-    clearTimeout(id);
-  }
-}
+const parser = new Parser({
+  timeout: 10000,
+  headers: {
+    'User-Agent': 'Mozilla/5.0 (compatible; MedicalNewsAgent/1.0)',
+    Accept: 'application/rss+xml, application/xml, text/xml',
+  },
+});
+
+// Reuters blocks direct scraping; use Google News RSS to find Reuters health articles
+const REUTERS_FEEDS = [
+  'https://news.google.com/rss/search?q=site:reuters.com+health&hl=en&gl=US&ceid=US:en',
+  'https://news.google.com/rss/search?q=reuters+health+medicine&hl=en&gl=US&ceid=US:en',
+];
 
 export async function scrapeReuters(): Promise<CollectionResult> {
   const source = 'Reuters';
   const articles: Article[] = [];
 
-  // Try Reuters health section
-  const urls = [
-    'https://www.reuters.com/business/healthcare-pharmaceuticals/',
-    'https://www.reuters.com/science/',
-  ];
-
-  for (const pageUrl of urls) {
+  for (const feedUrl of REUTERS_FEEDS) {
     try {
-      const res = await fetchWithTimeout(pageUrl);
-      if (!res.ok) continue;
-
-      const html = await res.text();
-      const $ = cheerio.load(html);
-
-      $('a[data-testid="Heading"]').each((_, el) => {
-        const $el = $(el);
-        const title = $el.text().trim();
-        const href = $el.attr('href') || '';
-        if (!title || !href) return;
-
-        const url = href.startsWith('http') ? href : `https://www.reuters.com${href}`;
-        if (articles.some((a) => a.url === url)) return;
-
+      const feed = await parser.parseURL(feedUrl);
+      for (const item of feed.items.slice(0, 15)) {
+        const url = item.link || item.guid || '';
+        if (!url || articles.some((a) => a.url === url)) continue;
+        // Only include items that are actually from reuters.com
+        if (!url.includes('reuters.com') && !item.title?.toLowerCase().includes('reuters')) continue;
         articles.push({
-          title,
+          title: item.title || '',
           url,
           source,
           source_url: 'https://www.reuters.com',
-          author: 'Reuters',
-          tags: ['Reuters', 'Health', 'Pharmaceuticals'],
-        });
-      });
-
-      // fallback: general article links
-      if (articles.length === 0) {
-        $('article').each((_, el) => {
-          const $el = $(el);
-          const title = $el.find('h3, h2').first().text().trim();
-          const href =
-            $el.find('a').first().attr('href') || '';
-          if (!title || !href) return;
-
-          const url = href.startsWith('http')
-            ? href
-            : `https://www.reuters.com${href}`;
-          if (articles.some((a) => a.url === url)) return;
-
-          articles.push({
-            title,
-            url,
-            source,
-            source_url: 'https://www.reuters.com',
-            author: 'Reuters',
-            tags: ['Reuters', 'Health'],
-          });
+          author: item.creator || 'Reuters',
+          published_at: item.pubDate ? new Date(item.pubDate).toISOString() : undefined,
+          content: item.contentSnippet || item.summary || '',
+          tags: ['Reuters', 'Health'],
         });
       }
-
       if (articles.length >= 10) break;
     } catch {
-      // try next url
+      // try next feed
     }
+  }
+
+  if (articles.length === 0) {
+    return { source, articles: [], error: 'No Reuters health articles found via RSS' };
   }
 
   return { source, articles: articles.slice(0, 20) };

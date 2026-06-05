@@ -7,20 +7,20 @@ export async function summarizeArticle(
   title: string,
   content: string
 ): Promise<SummarizeResult> {
-  const _rawKey = process.env.OPENROUTER_API_KEY || '';
-  // Strip BOM (charCode 65279) that Windows/PowerShell injects via stdin pipe
-  const apiKey = (_rawKey.charCodeAt(0) === 65279 ? _rawKey.slice(1) : _rawKey).trim();
+  // Strip BOM (charCode 65279) that Windows/PowerShell injects into env vars via stdin pipe
+  const stripBom = (s: string) => (s.charCodeAt(0) === 65279 ? s.slice(1) : s).trim();
+  const apiKey = stripBom(process.env.OPENROUTER_API_KEY || '');
   if (!apiKey || apiKey === 'your_openrouter_api_key_here') {
     return { summary: '', keywords: [] };
   }
+  const referer = stripBom(process.env.NEXT_PUBLIC_APP_URL || '') || 'https://medical-news-agent.vercel.app';
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer':
-        process.env.NEXT_PUBLIC_APP_URL || 'https://medical-news-agent.vercel.app',
+      'HTTP-Referer': referer,
       'X-Title': 'Medical News Agent',
     },
     body: JSON.stringify({
