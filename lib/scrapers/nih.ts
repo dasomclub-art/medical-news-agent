@@ -9,26 +9,42 @@ const parser = new Parser({
   },
 });
 
+const NIH_FEEDS = [
+  'https://newsinhealth.nih.gov/sites/nihNIH/files/rss.xml',
+  'https://www.niaid.nih.gov/news-events/newsroom/rss',
+  'https://www.cancer.gov/news-events/cancer-currents-blog/feed',
+];
+
 export async function scrapeNIH(): Promise<CollectionResult> {
   const source = 'NIH';
-  try {
-    const feed = await parser.parseURL('https://www.nih.gov/feeds/newsreleases.xml');
-    const articles: Article[] = feed.items.slice(0, 20).map((item) => ({
-      title: item.title || '',
-      url: item.link || item.guid || '',
-      source,
-      source_url: 'https://www.nih.gov',
-      author: item.creator || 'NIH',
-      published_at: item.pubDate ? new Date(item.pubDate).toISOString() : undefined,
-      content: item.contentSnippet || item.summary || '',
-      tags: ['NIH', 'Research', 'Biomedical'],
-    }));
-    return { source, articles: articles.filter((a) => a.url) };
-  } catch (error) {
-    return {
-      source,
-      articles: [],
-      error: error instanceof Error ? error.message : String(error),
-    };
+  const articles: Article[] = [];
+
+  for (const feedUrl of NIH_FEEDS) {
+    try {
+      const feed = await parser.parseURL(feedUrl);
+      for (const item of feed.items.slice(0, 10)) {
+        const url = item.link || item.guid || '';
+        if (!url || articles.some((a) => a.url === url)) continue;
+        articles.push({
+          title: item.title || '',
+          url,
+          source,
+          source_url: 'https://www.nih.gov',
+          author: item.creator || 'NIH',
+          published_at: item.pubDate ? new Date(item.pubDate).toISOString() : undefined,
+          content: item.contentSnippet || item.summary || '',
+          tags: ['NIH', 'Research', 'Biomedical'],
+        });
+      }
+      if (articles.length > 0) break;
+    } catch {
+      // try next feed
+    }
   }
+
+  if (articles.length === 0) {
+    return { source, articles: [], error: 'All NIH RSS feeds failed' };
+  }
+
+  return { source, articles };
 }
